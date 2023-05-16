@@ -7,8 +7,260 @@ on:
 
 jobs:
 
+  build:
+    name: Build and push packages ⚙️
+    runs-on: ubuntu-latest
+    
+    outputs:
+      version: ${{ steps.version-generator.outputs.version }}
+
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set Version Number
+      id: version-generator
+      run: echo "version=$(date +'%Y.%m.%d').$GITHUB_RUN_NUMBER" >> $GITHUB_OUTPUT
+    
+    - name: Setup .NET 6
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: '6.0.406'
+    
+    - name: Install dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+
+    - name: Unit test
+      run: echo "Executing unit tests ✅"
+
+    - name: Create artifacts folder
+      run: |
+        mkdir "$GITHUB_WORKSPACE/artifacts"
+        mkdir "$GITHUB_WORKSPACE/artifacts/OctopusSamples.OctoPetShop.Database"
+        mkdir "$GITHUB_WORKSPACE/artifacts/OctopusSamples.OctoPetShop.Web"
+        mkdir "$GITHUB_WORKSPACE/artifacts/OctopusSamples.OctoPetShop.ProductService"
+        mkdir "$GITHUB_WORKSPACE/artifacts/OctopusSamples.OctoPetShop.ShoppingCartService"
+    
+    - name: Publish OctoPetShopDatabase
+      run: dotnet publish OctopusSamples.OctoPetShop.Database/OctopusSamples.OctoPetShop.Database.csproj --configuration Release --no-restore --output "$GITHUB_WORKSPACE/artifacts/OctopusSamples.OctoPetShop.Database"
+    
+    - name: Publish OctoPetShopWeb
+      run: dotnet publish OctopusSamples.OctoPetShop.Web/OctopusSamples.OctoPetShop.Web.csproj --configuration Release --no-restore --output "$GITHUB_WORKSPACE/artifacts/OctopusSamples.OctoPetShop.Web"
+    
+    - name: Publish OctoPetShopProductService
+      run: dotnet publish OctopusSamples.OctoPetShop.ProductService/OctopusSamples.OctoPetShop.ProductService.csproj --configuration Release --no-restore --output "$GITHUB_WORKSPACE/artifacts/OctopusSamples.OctoPetShop.ProductService"
+    
+    - name: Publish OctoPetShopShoppingCartService
+      run: dotnet publish OctopusSamples.OctoPetShop.ShoppingCartService/OctopusSamples.OctoPetShop.ShoppingCartService.csproj --configuration Release --no-restore --output "$GITHUB_WORKSPACE/artifacts/OctopusSamples.OctoPetshop.ShoppingCartService"
+    
+    - name: Install Octopus CLI
+      uses: OctopusDeploy/install-octopus-cli-action@v1.1.6
+      with:
+        version: latest
+
+    - name: Package OctoPetShop.Database 🐙
+      uses: OctopusDeploy/create-zip-package-action@v3
+      with:
+        package_id: "OctoPetShop.Database"
+        version: "${{ steps.version-generator.outputs.version }}"
+        output_folder: "${{ github.workspace }}/artifacts"
+        base_path: "${{ github.workspace }}/artifacts/OctopusSamples.OctoPetShop.Database"
+        files: |
+          **/*.*
+
+    - name: Package OctoPetShop.Web 🐙
+      uses: OctopusDeploy/create-zip-package-action@v3
+      with:
+        package_id: "OctoPetShop.Web"
+        version: "${{ steps.version-generator.outputs.version }}"
+        output_folder: "${{ github.workspace }}/artifacts"
+        base_path: "${{ github.workspace }}/artifacts/OctopusSamples.OctoPetShop.Web"
+        files: |
+          **/*.*
+
+    - name: Package OctoPetShop.ProductService 🐙
+      uses: OctopusDeploy/create-zip-package-action@v3
+      with:
+        package_id: "OctoPetShop.ProductService"
+        version: "${{ steps.version-generator.outputs.version }}"
+        output_folder: "${{ github.workspace }}/artifacts"
+        base_path: "${{ github.workspace }}/artifacts/OctopusSamples.OctoPetShop.ProductService"
+        files: |
+          **/*.*
+
+    - name: Package OctoPetShop.ShoppingCartService 🐙
+      uses: OctopusDeploy/create-zip-package-action@v3
+      with:
+        package_id: "OctoPetShop.ShoppingCartService"
+        version: "${{ steps.version-generator.outputs.version }}"
+        output_folder: "${{ github.workspace }}/artifacts"
+        base_path: "${{ github.workspace }}/artifacts/OctopusSamples.OctoPetShop.ShoppingCartService"
+        files: |
+          **/*.*
+
+    - name: Push OctoPetShop Packages
+      uses: OctopusDeploy/push-package-action@v1.1.1
+      with:
+        api_key: ${{ secrets.OCTOPUS_API_KEY }}
+        server: ${{ secrets.OCTOPUS_SERVER_URL }}
+        space: ${{ vars.OCTOPUS_SPACE_NAME }}
+        packages: |
+          artifacts/OctoPetShop.Database.${{ steps.version-generator.outputs.version }}.zip
+          artifacts/OctoPetShop.Web.${{ steps.version-generator.outputs.version }}.zip
+          artifacts/OctoPetShop.ProductService.${{ steps.version-generator.outputs.version }}.zip
+          artifacts/OctoPetShop.ShoppingCartService.${{ steps.version-generator.outputs.version }}.zip
+
+  code-analysis:
+    name: Run code analysis 🧪
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run code analysis
+        run: echo "Executing code analysis ✅"
+
+  sast:
+    name: Run SAST 🧪
+    runs-on: ubuntu-latest
+      
+    steps:
+      - name: Run SAST
+        run: echo "Executing SAST ✅"
+
+  push-build-information:
+      name: Push Build Information to Octopus 🐙
+      needs: build 
+      runs-on: ubuntu-latest
+      
+      env:
+        OCTOPUS_URL: ${{ secrets.OCTOPUS_SERVER_URL }}
+        OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+        OCTOPUS_SPACE: ${{ vars.OCTOPUS_SPACE_NAME }}
+      
+      steps:
+      - uses: OctopusDeploy/push-build-information-action@v3
+        name: Push Build Information
+        with:
+          version: ${{ needs.build.outputs.version }}
+          packages: |
+            OctoPetShop.Database
+            OctoPetShop.Web
+            OctoPetShop.ProductService
+            OctoPetShop.ShoppingCartService
+    
+  create-octopus-release:
+  
+      name: Create Octopus Release 🐙
+      needs: [build, push-build-information]
+      runs-on: ubuntu-latest
+      
+      env:
+        OCTOPUS_URL: ${{ secrets.OCTOPUS_SERVER_URL }}
+        OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+        OCTOPUS_SPACE: ${{ vars.OCTOPUS_SPACE_NAME }}
+        
+      steps:
+
+        - uses: OctopusDeploy/create-release-action@v3
+          id: "create-release-2"
+          with:
+            project: "OctoPetShop - GitHub Flow"
+            release_number: ${{ needs.build.outputs.version }}
+
+        - uses: OctopusDeploy/deploy-release-action@v3
+          id: "deploy-release-2"
+          with:
+            project: "OctoPetShop - GitHub Flow"
+            release_number: ${{ needs.build.outputs.version }}
+            environments: Development
+
+        - uses: OctopusDeploy/await-task-action@v3
+          id: "wait-for-deploy-2"
+          with:
+            server_task_id: ${{ fromJson(steps.deploy-release-2.outputs.server_tasks)[0].serverTaskId }}
+
+  dev-approval:
+    name: Approve Dev deployment ✅
+    needs: [create-octopus-release, code-analysis, sast]
+    runs-on: ubuntu-latest
+    environment: 'Hom'
+
+    steps:
+      - name: Gather approval
+        run: echo "Approval gathered ✅"
+
+  create-github-release:
+    name: Create GitHub Release
+    needs: [dev-approval]
+    runs-on: ubuntu-latest
+
+    steps:
+      #- uses: ncipollo/release-action@v1
+       - name: Create GitHub release
+         run: echo "creating release"
+
+  promote-artifact:
+    name: Promote artifact 🔼
+    runs-on: ubuntu-latest
+    needs: create-github-release
+
+    steps:
+      - name: Promote artifact
+        run: echo "Promoting artifact ✅"
+
+  deploy-octopus-release:
+    name: Deploy Octopus release 🐙
+    runs-on: ubuntu-latest
+    needs: promote-artifact
+      
+    env:
+      OCTOPUS_URL: ${{ secrets.OCTOPUS_SERVER_URL }}
+      OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+      OCTOPUS_SPACE: ${{ vars.OCTOPUS_SPACE_NAME }}
+
+    steps:
+      - name: Install Octopus CLI
+        uses: OctopusDeploy/install-octopus-cli-action@v1.1.6
+        with:
+          version: latest
+
+      - name: promote release
+        run: octo promote-release --project "OctoPetShop - GitHub Flow" --from Development --to Test --progress --server ${{ secrets.OCTOPUS_SERVER_URL }} --apikey ${{ secrets.OCTOPUS_API_KEY }} --space "${{ vars.OCTOPUS_SPACE_NAME }}"
+
+  manual-test-suite:
+    name: Run manual test suite 🧪
+    runs-on: ubuntu-latest
+    needs: deploy-octopus-release
+    environment: 'Hom'
+                
+    steps:
+      - name: Run manual test suite
+        run: echo "Executing manual test suite ✅"
+
+  automated-test-suite:
+    name: Run automated test suite 🧪
+    runs-on: ubuntu-latest
+    needs: deploy-octopus-release
+    
+    steps:
+      - name: Run automated test suite
+        run: echo "Executing automated test suite ✅"
+
+  test-approval:
+    name: Approve deployment ✅
+    needs: [manual-test-suite, automated-test-suite]
+    runs-on: ubuntu-latest
+    environment: 'Hom'
+      
+    steps:
+      - name: Gather approval
+        run: echo "Approval gathered ✅"
+
+
   promote-artifact-to-production:
     name: Promote artifact 🔼
+    needs: [test-approval]
     runs-on: ubuntu-latest
     steps:
       - name: Promote artifact
@@ -32,15 +284,15 @@ jobs:
       - name: Run manual test suite
         run: echo "Executing Change validation ✅"
 
-  deploy-octopus-release:
-    name: Deploy Octopus release 🐙
+  promote-octopus-release-to-production:
+    name: Promote Octopus release to Production 🐙
     runs-on: ubuntu-latest
     needs: change-validation
             
     env:
       OCTOPUS_URL: ${{ secrets.OCTOPUS_SERVER_URL }}
       OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
-      OCTOPUS_SPACE: ${{ secrets.OCTOPUS_SPACE_NAME }}
+      OCTOPUS_SPACE: ${{ vars.OCTOPUS_SPACE_NAME }}
       
     steps:
       - name: Install Octopus CLI
@@ -48,6 +300,6 @@ jobs:
         with:
           version: latest
       
-      - name: promote release
-        run: octo promote-release --project "OctoPetShop - Gitflow 2" --from Test --to Production --progress --server ${{ secrets.OCTOPUS_SERVER_URL }} --apikey ${{ secrets.OCTOPUS_API_KEY }} --space "${{ secrets.OCTOPUS_SPACE_NAME }}"
+      - name: Promote release to Production
+        run: octo promote-release --project "OctoPetShop - GitHub Flow" --from Test --to Production --progress --server ${{ secrets.OCTOPUS_SERVER_URL }} --apikey ${{ secrets.OCTOPUS_API_KEY }} --space "${{ vars.OCTOPUS_SPACE_NAME }}"
       
