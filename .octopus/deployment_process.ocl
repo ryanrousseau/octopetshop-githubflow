@@ -109,6 +109,7 @@ step "ops-product-service" {
             Octopus.Action.Package.FeedId = "octopus-server-built-in"
             Octopus.Action.Package.JsonConfigurationVariablesTargets = "appsettings.json"
             Octopus.Action.Package.PackageId = "OctoPetShop.ProductService"
+            Octopus.Action.RunOnServer = "false"
         }
         worker_pool_variable = ""
 
@@ -155,6 +156,7 @@ step "ops-shopping-cart" {
             Octopus.Action.Package.FeedId = "octopus-server-built-in"
             Octopus.Action.Package.JsonConfigurationVariablesTargets = "appsettings.json"
             Octopus.Action.Package.PackageId = "OctoPetShop.ShoppingCartService"
+            Octopus.Action.RunOnServer = "false"
         }
         worker_pool_variable = ""
 
@@ -200,6 +202,7 @@ step "ops-web" {
             Octopus.Action.Package.FeedId = "octopus-server-built-in"
             Octopus.Action.Package.JsonConfigurationVariablesTargets = "appsettings.json"
             Octopus.Action.Package.PackageId = "OctoPetShop.Web"
+            Octopus.Action.RunOnServer = "false"
         }
         worker_pool_variable = ""
 
@@ -228,5 +231,22 @@ step "smoke-test-api-endpoints" {
             smoketest.baseURI = "#{OPS.Web.Portal.URL}"
         }
         worker_pool_variable = ""
+    }
+}
+
+step "send-completion-notification" {
+    name = "Send completion notification"
+
+    action {
+        action_type = "Octopus.Email"
+        environments = ["production"]
+        is_required = true
+        properties = {
+            Octopus.Action.Email.Body = "#{Octopus.Release.Notes}"
+            Octopus.Action.Email.Priority = "High"
+            Octopus.Action.Email.Subject = "Release #{Octopus.Release.Number} has been deployed to #{Octopus.Environment.Name}"
+            Octopus.Action.Email.To = "#{Octopus.Deployment.CreatedBy.EmailAddress}"
+            Octopus.Action.RunOnServer = "false"
+        }
     }
 }
