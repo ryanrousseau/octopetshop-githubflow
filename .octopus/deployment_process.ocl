@@ -235,7 +235,7 @@ step "smoke-test-api-endpoints" {
 }
 
 step "send-completion-notification" {
-    name = "Send Completion Notification"
+    name = "Send completion notification"
 
     action {
         action_type = "Octopus.Email"
@@ -246,6 +246,7 @@ step "send-completion-notification" {
             Octopus.Action.Email.Priority = "High"
             Octopus.Action.Email.Subject = "Release #{Octopus.Release.Number} has been deployed to #{Octopus.Environment.Name}"
             Octopus.Action.Email.To = "#{Octopus.Deployment.CreatedBy.EmailAddress}"
+            Octopus.Action.RunOnServer = "false"
         }
     }
 }
